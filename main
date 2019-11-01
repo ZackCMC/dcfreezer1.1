@@ -120,7 +120,7 @@ function recalc() {
 
   var MasterItemNum_temp = ItemArray;
   var MasterItemNum = [];
-  MasterItemNum_temp.sort();
+  //MasterItemNum_temp.sort();
   // remove duplicates
   v = 0;
   currentworkingitem = "";
