@@ -1,0 +1,342 @@
+function onOpen() {
+    var ui = SpreadsheetApp.getUi();
+        ui.createMenu('Custom Menu')
+           .addItem('Recalculate', 'recalc')
+           .addToUi();
+        var sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        ss=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REPORT").activate();
+}
+
+
+function recalc() {
+
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert('Recalculate REPORT Screen?', ui.ButtonSet.YES_NO);
+  // Process the user's response.
+  if (response == ui.Button.NO) {
+    return;
+  }
+
+  ss=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REPORT").activate();
+  ss.getRange('A2:D1000').clearContent();
+
+  // build array from sheets
+  var ItemArray = [];
+  var LotArray = [];
+  var QtyArray = [];
+  var sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+  j=0;  
+  for (var i = 0; i < sheets.length ; i++ ) 
+  {
+//     if (sheets[i].getName() == "FREEZER WALLS") 
+     if (sheets[i].getName() != "REPORT" && sheets[i].getName() != "ITEMS") 
+     {
+        activesheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheets[i].getName()).activate();
+
+        for (var xcol = 2 ; xcol < 53 ; xcol++) 
+        {  
+           for (var xrow = 4 ; xrow < 25 ; xrow++) 
+           {
+           Itemcnt = 0;
+           Lotcnt = 0;
+           Qtycnt = 0;
+           ItemArraytmp = [];
+           LotArraytmp = [];
+           QtyArraytmp = [];
+           var text = activesheet.getRange(xrow,xcol).getValue().toString();
+           if (text.indexOf("|") > -1) 
+           {
+              rangelot = activesheet.getRange(xrow,xcol).getDisplayValue(); 
+              rangeitem = activesheet.getRange(xrow+1,xcol).getDisplayValue(); 
+              rangeqty = activesheet.getRange(xrow+2,xcol).getDisplayValue(); 
+              do
+              {
+                slashfound = rangelot.indexOf("|");
+                LotArraytmp[Lotcnt] = rangelot.substring(0, slashfound);
+                Lotcnt = Lotcnt + 1;
+                rangelot = rangelot.substring(slashfound + 1);
+              } while (rangelot.indexOf("|") > -1)
+              LotArraytmp[Lotcnt] = rangelot;
+              Lotcnt = Lotcnt + 1;
+
+              do
+              {
+                slashfound = rangeqty.indexOf("|");
+                QtyArraytmp[Qtycnt] = rangeqty.substring(0, slashfound);
+                Qtycnt = Qtycnt + 1;
+                rangeqty = rangeqty.substring(slashfound + 1);
+              } while (rangeqty.indexOf("|") > -1)
+              QtyArraytmp[Qtycnt] = rangeqty;
+              Qtycnt = Qtycnt + 1;
+
+              if (rangeitem.indexOf("|") > -1)
+              { 
+                do 
+                {
+                  slashfound = rangeitem.indexOf("|");
+                  ItemArraytmp[Itemcnt] = rangeitem.substring(0, slashfound);
+                  Itemcnt = Itemcnt + 1;
+                  rangeitem = rangeitem.substring(slashfound + 1);
+                } while (rangeitem.indexOf("|") > -1)
+              }
+              ItemArraytmp[Itemcnt] = rangeitem;
+              Itemcnt = Itemcnt + 1;
+
+              if(Itemcnt != Lotcnt) 
+              {
+                 for (var xtmp = Itemcnt ; xtmp <= Lotcnt ; xtmp++) 
+                 {
+                    ItemArraytmp[xtmp+1] = rangeitem;
+                 }  
+              } 
+              
+             for (var xarray = 0 ; xarray < Qtycnt ; xarray++) 
+             {
+                if (QtyArraytmp[xarray] != "" || QtyArraytmp[xarray] > 0)
+                {
+                   ItemArray[j] = [ItemArraytmp[xarray]];  // [Item]
+                   LotArray[j] = [LotArraytmp[xarray]];  // [lot]
+                   QtyArray[j] = [QtyArraytmp[xarray]];  // [qty]
+                   j = j + 1;
+                }  
+             }
+           } else {
+              if (activesheet.getRange(xrow,xcol).getValue() != '' && activesheet.getRange(xrow+1,xcol).getValue() != '' && activesheet.getRange(xrow+2,xcol).getValue() != '')
+              {
+                 if (activesheet.getRange(xrow,xcol).getValue() != 'LOT')
+                 {
+                    LotArray[j] = [activesheet.getRange(xrow,xcol).getValue()];  // [lot]
+                    ItemArray[j] = [activesheet.getRange(xrow+1,xcol).getValue()];  // [Item]
+                    QtyArray[j] = [activesheet.getRange(xrow+2,xcol).getValue()];  // [qty]
+                    j = j + 1;
+                 }   
+              }  
+           }
+           xrow = xrow + 4;
+         }
+        }
+     }  
+  }  
+
+  var MasterItemNum_temp = ItemArray;
+  var MasterItemNum = [];
+  MasterItemNum_temp.sort();
+  // remove duplicates
+  v = 0;
+  currentworkingitem = "";
+  for (w = 0 ; w < MasterItemNum_temp.length ; w++) 
+  {  
+    if (MasterItemNum_temp[w] != "")
+    {
+      if (MasterItemNum_temp[w].toString() != currentworkingitem.toString())
+      {
+         currentworkingitem = MasterItemNum_temp[w].toString();
+         MasterItemNum[v] = MasterItemNum_temp[w].toString(); 
+         v = v + 1;
+      }
+    }  
+  }
+
+
+  ss=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REPORT").activate();
+  ss.getRange(1,6).setValue("Processing...");
+
+  var xCurrLotList = [];
+  var xCurrLotQtyList = [];
+  currentrow = 2;
+  ss=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REPORT").activate();
+  for (w = 0 ; w <= MasterItemNum.length - 1 ; w++) {  
+     // spin through items looking for the item in the MasterItemNum array
+     xCurrLotList = [];
+     xCurrLotQtyList = [];
+     match = "false";
+     if (MasterItemNum[w] != "") { 
+        for (x = 0 ; x <= ItemArray.length - 1  ; x++ ) {
+           if (MasterItemNum[w].toString() == ItemArray[x].toString()) {
+              match="true";
+              found = "false";
+              for (zz = 0 ; zz < xCurrLotList.length  ; zz++ ) { 
+                 if (parseInt(LotArray[x],10).toString() == parseInt(xCurrLotList[zz],10).toString() ) {
+                      xCurrLotQtyList[zz] = parseInt(xCurrLotQtyList[zz],10) + parseInt(QtyArray[x],10);
+                      found = "true";
+                      break;
+                 }
+              }
+             if (found == "false") {
+                 xCurrLotQtyList[zz] = parseInt(QtyArray[x],10);
+                 xCurrLotList[zz] = LotArray[x];
+             }   
+           }
+       }
+       if (match == "true") {
+          // loop through lot array writing records
+          itemqtytotal = 0;
+          itemsummrow = currentrow;
+          for (yyy = 0 ; yyy <= xCurrLotList.length - 1; yyy++) {  
+             ss.getRange(currentrow,1).setValue(MasterItemNum[w]);  //write item to REPORT screen
+             ss.getRange(currentrow,2).setValue(xCurrLotList[yyy]);  //write item to REPORT screen
+             ss.getRange(currentrow,3).setValue(xCurrLotQtyList[yyy]);  //write item to REPORT screen
+             itemqtytotal = itemqtytotal + xCurrLotQtyList[yyy];
+             currentrow = currentrow + 1;
+          }
+          ss.getRange('D' + itemsummrow).setValue(itemqtytotal);
+       } else { 
+//       wtf = ItemArray[x];
+//       sendtoscreen(wtf);
+       }
+    }
+
+  }
+
+  ss.getRange(1,6).setValue("Last run:");
+  var date = Utilities.formatDate(new Date(), 'America/Chicago', "MM/dd/yyyy  HH:mm:ss");
+  ss.getRange(1,7).setValue(date);
+
+  sendtoscreen('Complete');
+
+} // end recalc
+
+//************** UTILS ****************************************
+//************** UTILS ****************************************
+//************** UTILS ****************************************
+function getdata(type,tosheet) {
+  if (type == 'USERS') {
+     //Copy users 
+     ss.getRange('BB1:BC1000').clearContent();
+     var source_sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Settings");
+     var target_sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(tosheet);
+     var source_range = source_sheet.getRange("A6:C1006");
+     var target_range = target_sheet.getRange("BB1:BD1000");
+     source_range.copyTo(target_range);
+     retdata = ss.getRange("BB1:BC1000").getValues();
+  }  
+
+  if (type == 'ITEMREPORT') {
+    var source_sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ITEMS");
+    var target_sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REPORT");
+    var source_range = source_sheet.getRange("A1:B40");
+    var target_range = target_sheet.getRange("A2:B41");
+    source_range.copyTo(target_range);
+    retdata = 'T'
+  }
+
+  if (type == 'ITEMS') {
+     //Copy items 
+     ss.getRange('BB1:BC1000').clearContent();
+     var source_sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ITEMS");
+     var target_sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(tosheet);
+     var source_range = source_sheet.getRange("A1:B1000");
+     var target_range = target_sheet.getRange("BB1:BC1000");
+     source_range.copyTo(target_range);
+     retdata = ss.getRange("BB1:BC1000").getValues();
+  }  
+
+  if (type == 'LOTS') {
+    //Copy lots
+
+    
+    
+    
+    retdata = 'T'
+  }  
+
+
+  return (retdata); 
+}
+
+
+function sendtoscreen(stuff) {  
+  var htmlOutput = HtmlService
+    .createHtmlOutput('<p></p>')
+    .setWidth(20)
+    .setHeight(20);
+  SpreadsheetApp.getUi().showModelessDialog(htmlOutput, stuff);
+}
+
+function Builditems(){
+  activesheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ITEMS").activate();
+  activesheet.getRange('A2:E1000').clearContent();
+
+  var AisleArray = [];
+  var ItemArray = [];
+  var LotArray = [];
+  var QtyArray = [];
+  var LocArray = [];  
+  var sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+  j=0;  
+  for (var i = 0; i < sheets.length ; i++ ) 
+  {
+     if (sheets[i].getName() != "REPORT" && sheets[i].getName() != "ITEMS" && sheets[i].getName() != "COMMENTS" && sheets[i].getName() != "General" && sheets[i].getName() != "Settings"  && sheets[i].getName() != "WIMSTR") 
+     {
+        activesheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheets[i].getName()).activate();
+        for (var xcol = 2 ; xcol < 1000 ; xcol++) 
+        {  
+           rangeitem = activesheet.getRange(5,xcol); 
+          
+          rangelot = activesheet.getRange(2,xcol); 
+           rangeqty = activesheet.getRange(6,xcol); 
+           rangeloc = activesheet.getRange(9,xcol); 
+           // Top half seaction A
+           if (rangeitem.getValue() != "" && rangeitem.getValue() != "INNOVATION" && rangeitem.getValue() != "O" && rangeitem.getValue() != "OPEN" && rangelot.getValue() != "OPEN" && parseInt(rangeqty.getValue(),10) > 0) {  
+              AisleArray[j] = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName();
+              ItemArray[j] = [rangeitem.getValue()];  // [Item]
+              LotArray[j] = [rangelot.getValue()];  // [lot]
+              QtyArray[j] = [rangeqty.getValue()];  // [qty]
+              LocArray[j] = [rangeloc.getValue()];  // [loc]
+              j = j + 1;
+           }
+           // Top half seaction B
+           rangeitem = activesheet.getRange(12,xcol); 
+           
+           rangelot = activesheet.getRange(12,xcol); 
+           rangeqty = activesheet.getRange(16,xcol); 
+           rangeloc = activesheet.getRange(11,xcol); 
+           if (rangeitem.getValue() != "" && rangeitem.getValue() != "INNOVATION" && rangeitem.getValue() != "OPEN" && rangelot.getValue() != "OPEN" && parseInt(rangeqty.getValue(),10) > 0) { 
+           rangeqty = activesheet.getRange(16,xcol); 
+              AisleArray[j] = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName();
+              ItemArray[j] = [rangeitem.getValue()];  // [Item]
+              LotArray[j] = [rangelot.getValue()];  // [lot]
+              QtyArray[j] = [rangeqty.getValue()];  // [qty]
+              LocArray[j] = [rangeloc.getValue()];  // [loc]
+              j = j + 1;
+           }  
+           // Bottom half section A
+           rangeitem = activesheet.getRange(17,xcol); 
+          
+           rangelot = activesheet.getRange(22,xcol); 
+           rangeqty = activesheet.getRange(26,xcol); 
+           rangeloc = activesheet.getRange(29,xcol); 
+           if (rangeitem.getValue() != "" && rangeitem.getValue() != "INNOVATION" && rangeitem.getValue() != "OPEN" && rangelot.getValue() != "OPEN" && parseInt(rangeqty.getValue(),10) > 0) { 
+              AisleArray[j] = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName();
+              ItemArray[j] = [rangeitem.getValue()];  // [Item]
+              LotArray[j] = [rangelot.getValue()];  // [lot]
+              QtyArray[j] = [rangeqty.getValue()];  // [qty]
+              LocArray[j] = [rangeloc.getValue()];  // [loc]
+              j = j + 1;
+           }  
+           // Bottom half section B
+           rangeitem = activesheet.getRange(24,xcol); 
+          
+           rangelot = activesheet.getRange(32,xcol); 
+           rangeqty = activesheet.getRange(36,xcol); 
+           rangeloc = activesheet.getRange(31,xcol); 
+           if (rangeitem.getValue() != "" && rangeitem.getValue() != "INNOVATION" && rangeitem.getValue() != "OPEN" && rangelot.getValue() != "OPEN" && parseInt(rangeqty.getValue(),10) > 0) { 
+              AisleArray[j] = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName();
+              ItemArray[j] = [rangeitem.getValue()];  // [Item]
+              LotArray[j] = [rangelot.getValue()];  // [lot]
+              QtyArray[j] = [rangeqty.getValue()];  // [qty]
+              LocArray[j] = [rangeloc.getValue()];  // [loc]
+              j = j + 1;
+           }  
+        }
+     }  
+  }  
+  activesheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ITEMS").activate();
+  for (xrow = 2 ; xrow < 1000 ; xrow++) {
+    if (parseInt(QtyArray[xrow],10) > 0) {
+     activesheet.getRange('A' + xrow).setValue(ItemArray[xrow]);
+    }  
+  }
+  
+}
+
